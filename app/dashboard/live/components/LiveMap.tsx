@@ -2,8 +2,8 @@
 
 import { SimpleGrid, Paper, Title, Stack, Text } from "@mantine/core";
 import { LiveClient, LiveHostess } from "@/lib/types";
-import { LiveClientCard } from "./LiveClientCard";
-import { LiveHostessCard } from "./LiveHostessCard";
+import { LiveClientCard } from "../../components/LiveClientCard";
+import { LiveHostessCard } from "../../components/LiveHostessCard";
 
 type LiveMapProps = {
   clients: LiveClient[];
