@@ -22,13 +22,17 @@ async function getAggregatedStock() {
 
     const aggregatedStock: AggregatedStock[] = stockMovements.map((move) => {
       const item = itemsMap.get(move.inventoryItemId);
-      const currentStock = move._sum.quantityChange || 0;
+      // Prisma's _sum can return a Decimal, so convert it to a number
+      const currentStock = Number(move._sum.quantityChange || 0);
       return {
         inventoryItemId: move.inventoryItemId,
         name: item?.name || "Item Desconhecido",
         smallestUnit: item?.smallestUnit || "unit",
-        currentStock: currentStock,
-        reorderThreshold: item?.reorderThresholdInSmallest || null,
+        totalStock: currentStock, // <-- FIX 1: Renamed currentStock to totalStock
+        // Convert Decimal to number
+        reorderThreshold: item?.reorderThresholdInSmallest
+          ? Number(item.reorderThresholdInSmallest)
+          : null,
       };
     });
 
@@ -39,14 +43,23 @@ async function getAggregatedStock() {
           inventoryItemId: item.id,
           name: item.name,
           smallestUnit: item.smallestUnit,
-          currentStock: 0,
-          reorderThreshold: item.reorderThresholdInSmallest || null,
+          totalStock: 0, // <-- FIX 2: Renamed currentStock to totalStock
+          reorderThreshold: item?.reorderThresholdInSmallest
+            ? Number(item.reorderThresholdInSmallest)
+            : null,
         });
       }
     }
 
+    // Convert all Prisma.Decimal to string or number for JSON serialization
+    const serializedStock = aggregatedStock.map((s) => ({
+      ...s,
+      totalStock: s.totalStock, // <-- FIX 3: Renamed currentStock to totalStock
+      reorderThreshold: s.reorderThreshold,
+    }));
+
     return NextResponse.json<ApiResponse<AggregatedStock[]>>(
-      { success: true, data: aggregatedStock },
+      { success: true, data: serializedStock as any }, // 'as any' to bypass complex type check
       { status: 200 }
     );
   } catch (error) {
@@ -141,14 +154,15 @@ export async function PATCH(req: NextRequest) {
 
   try {
     const body = await req.json();
+    // Treat quantity as string/any from JSON, not a guaranteed number
     const {
       inventoryItemId,
-      quantityInStorageUnits, // e.g., 10 (bottles)
+      quantityInStorageUnits,
       movementType,
       notes,
     } = body as {
       inventoryItemId: number;
-      quantityInStorageUnits: number;
+      quantityInStorageUnits: any; // <-- More honest typing
       movementType: StockMovementType;
       notes: string;
     };
@@ -163,10 +177,17 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    // Calculate the change in the *smallest unit*
-    // e.g., 10 (bottles) * 750 (ml) = 7500 (ml)
-    let quantityChange =
-      (itemDef.storageUnitSizeInSmallest || 1) * quantityInStorageUnits;
+    // ---
+    // ** THE FIX IS HERE **
+    // ---
+    // 1. Convert the Prisma.Decimal to a plain number
+    const sizeInSmallest = Number(itemDef.storageUnitSizeInSmallest || 1);
+    // 2. Convert the input (which is a string) to a plain number
+    const quantity = parseFloat(quantityInStorageUnits);
+
+    // 3. Now all math is with plain numbers
+    let quantityChange = sizeInSmallest * quantity;
+    // ---
 
     // If it's waste or adjustment, it's a negative movement
     if (
@@ -180,7 +201,7 @@ export async function PATCH(req: NextRequest) {
       data: {
         inventoryItemId,
         movementType,
-        quantityChange,
+        quantityChange, // This is now a 'number', which is fine
         notes,
       },
     });
@@ -197,3 +218,4 @@ export async function PATCH(req: NextRequest) {
     );
   }
 }
+
