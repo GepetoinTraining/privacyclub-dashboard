@@ -172,3 +172,10 @@ export type ReportData = {
   productLeaderboard: ProductLeaderboardItem[];
 };
 
+// ---
+// QR / Client Token
+// ---
+export type QrTokenPayload = {
+  token: string;
+  qrCodeUrl: string;
+};
