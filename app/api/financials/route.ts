@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
-import { ApiResponse, FinancialsData, HostessCommissionSummary } from "@/lib/types";
+import { ApiResponse, FinancialsData, HostessPayout } from "@/lib/types";
 import { NextRequest, NextResponse } from "next/server";
 import { StaffRole } from "@prisma/client";
 
@@ -60,20 +60,31 @@ export async function GET(req: NextRequest) {
       where: { id: { in: hostCommissions.map(h => h.hostId) }}
     });
     
-    const hostessCommissions: HostessCommissionSummary[] = hostCommissions.map(hc => {
+    // FIX 1: Renamed variable to `hostessPayoutData` to avoid conflict with `HostessPayout` type
+    const hostessPayoutData: HostessPayout[] = hostCommissions.map(hc => {
       const host = hosts.find(h => h.id === hc.hostId);
       return {
         hostId: hc.hostId,
         stageName: host?.stageName || 'Host Deletada',
+        // Step 1: Keep this as a number/Decimal for now
         totalUnpaidCommissions: hc._sum.commissionEarned || 0,
       }
-    }).filter(h => h.totalUnpaidCommissions > 0);
+    })
+    // Step 2: Filter using the number/Decimal
+    .filter(h => h.totalUnpaidCommissions > 0)
+    // Step 3: Now map the filtered results to convert to a string
+    .map(h => ({
+      ...h,
+      totalUnpaidCommissions: h.totalUnpaidCommissions.toString(),
+    }));
 
 
     const data: FinancialsData = {
       staffCommissions: staffCommissions as any,
       partnerPayouts: partnerPayouts as any,
-      hostessCommissions,
+      staffPayouts: staffCommissions as any,
+      // FIX 2: Use correct property name (lowercase 'h') and new variable name
+      hostessPayouts: hostessPayoutData,
     };
 
     return NextResponse.json<ApiResponse<FinancialsData>>(
@@ -88,3 +99,7 @@ export async function GET(req: NextRequest) {
     );
   }
 }
+
+
+
+

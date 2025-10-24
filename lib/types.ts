@@ -11,7 +11,8 @@ import {
   Staff, 
   StaffCommission, 
   Visit ,
-  StaffShift
+  StaffShift,
+  Prisma
 } from "@prisma/client";
 
 // ---
@@ -123,11 +124,12 @@ export type PartnerPayoutItem = PartnerPayout & {
 export type HostessPayout = {
   hostId: number;
   stageName: string;
-  totalCommission: number;
+  totalUnpaidCommissions: number | String;
 };
 
 export type FinancialsData = {
   staffPayouts: StaffPayout[];
+  staffCommissions: StaffPayout[];
   partnerPayouts: PartnerPayoutItem[];
   hostessPayouts: HostessPayout[];
 };
