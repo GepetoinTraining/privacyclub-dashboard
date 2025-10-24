@@ -2,11 +2,11 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { ApiResponse } from "@/lib/types";
 import { NextRequest, NextResponse } from "next/server";
-import { Client, ClientStatus } from "@prisma/client";
+import { Client } from "@prisma/client";
 
 /**
  * GET /api/clients
- * Fetches all clients.
+ * Fetches all clients for the main client list.
  */
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -19,14 +19,15 @@ export async function GET(req: NextRequest) {
 
   try {
     const clients = await prisma.client.findMany({
-      orderBy: { lifetimeSpend: "desc" },
+      orderBy: {
+        createdAt: "desc",
+      },
     });
     return NextResponse.json<ApiResponse<Client[]>>(
       { success: true, data: clients },
       { status: 200 }
     );
-  } catch (error) {
-    console.error("GET /api/clients error:", error);
+  } catch (error: any) {
     return NextResponse.json<ApiResponse>(
       { success: false, error: "Erro ao buscar clientes" },
       { status: 500 }
@@ -46,7 +47,6 @@ export async function POST(req: NextRequest) {
       { status: 401 }
     );
   }
-  // TODO: Add role check
 
   try {
     const body = await req.json();
@@ -63,15 +63,13 @@ export async function POST(req: NextRequest) {
       data: {
         name,
         phoneNumber,
-        status: status || ClientStatus.new,
-        crmData: crmData || {},
+        status,
+        crmData,
         acquiredByStaffId: acquiredByStaffId
           ? parseInt(acquiredByStaffId)
           : null,
       },
     });
-
-    // TODO: If acquiredByStaffId exists, create a StaffCommission entry
 
     return NextResponse.json<ApiResponse<Client>>(
       { success: true, data: newClient },
@@ -79,15 +77,10 @@ export async function POST(req: NextRequest) {
     );
   } catch (error: any) {
     console.error("POST /api/clients error:", error);
-    if (error.code === "P2002") {
-      return NextResponse.json<ApiResponse>(
-        { success: false, error: "Este número de telefone já está em uso" },
-        { status: 400 }
-      );
-    }
     return NextResponse.json<ApiResponse>(
       { success: false, error: "Erro ao criar cliente" },
       { status: 500 }
     );
   }
 }
+

@@ -1,178 +1,84 @@
 "use client";
 
-import {
-  Modal,
-  TextInput,
-  Button,
-  Stack,
-  LoadingOverlay,
-  Select,
-  JsonInput,
-} from "@mantine/core";
-import { useForm } from "@mantine/form";
-import { Client, ClientStatus, Staff } from "@prisma/client";
-import { useState, useEffect } from "react";
+import { Container, Title, Paper, Text, Loader, Center } from "@mantine/core";
+import { useParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import { ClientDetail } from "./components/ClientDetail";
+import { ClientVisitHistory } from "./components/ClientVisitHistory";
+import { ClientWithVisits } from "@/lib/types";
 import { ApiResponse } from "@/lib/types";
-import { notifications } from "@mantine/notifications";
 
-type CreateClientModalProps = {
-  opened: boolean;
-  onClose: () => void;
-  onSuccess: () => void;
-};
+async function getClientData(
+  id: number
+): Promise<ClientWithVisits | null> {
+  try {
+    const response = await fetch(`/api/clients/${id}`);
+    if (!response.ok) {
+      return null;
+    }
+    const result: ApiResponse<ClientWithVisits> = await response.json();
+    if (result.success && result.data) {
+      return result.data;
+    }
+    return null;
+  } catch (error) {
+    console.error("Failed to fetch client data:", error);
+    return null;
+  }
+}
 
-// Default JSON structure for the crmData field
-const defaultCrmData = {
-  visit_pattern: {},
-  preferred_drinks: [],
-  common_hosts: [],
-  social_profile: {
-    origin: { is_local: true, city: "Balneário Camboriú", state: "SC" },
-    professional: {},
-    personal: {},
-    hobbies_interests: {},
-    lifestyle_cues: {},
-    service_profile: {},
-    general_notes: "",
-  },
-};
+export default function ClientDetailPage() {
+  const params = useParams();
+  const id = parseInt(params.id as string);
+  const [client, setClient] = useState<ClientWithVisits | null>(null);
+  const [loading, setLoading] = useState(true);
 
-type StaffSelect = { label: string; value: string };
-
-export function CreateClientModal({
-  opened,
-  onClose,
-  onSuccess,
-}: CreateClientModalProps) {
-  const [loading, setLoading] = useState(false);
-  const [staffList, setStaffList] = useState<StaffSelect[]>([]);
-
-  const form = useForm({
-    initialValues: {
-      name: "",
-      phoneNumber: "",
-      status: ClientStatus.new,
-      acquiredByStaffId: null as string | null,
-      crmData: JSON.stringify(defaultCrmData, null, 2),
-    },
-    validate: {
-      name: (val) => (val.trim().length < 2 ? "Nome inválido" : null),
-      crmData: (val) => {
-        try {
-          JSON.parse(val);
-          return null;
-        } catch (e) {
-          return "JSON inválido";
-        }
-      },
-    },
-  });
-
-  // Fetch staff list for CAC tracking
   useEffect(() => {
-    if (opened) {
-      fetch("/api/staff")
-        .then((res) => res.json())
-        .then((result: ApiResponse<Staff[]>) => {
-          if (result.success && result.data) {
-            setStaffList(
-              result.data.map((s) => ({
-                label: `${s.name} (${s.defaultRole})`,
-                value: s.id.toString(),
-              }))
-            );
-          }
-        });
-    } else {
-      form.reset();
-    }
-  }, [opened]);
-
-  const handleSubmit = async (values: typeof form.values) => {
-    setLoading(true);
-    try {
-      const payload = {
-        ...values,
-        crmData: JSON.parse(values.crmData), // Send as JSON object
-      };
-
-      const response = await fetch("/api/clients", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      const result: ApiResponse<Client> = await response.json();
-      if (!response.ok) throw new Error(result.error || "Falha ao criar cliente");
-
-      notifications.show({
-        title: "Sucesso!",
-        message: `Cliente "${values.name}" criado.`,
-        color: "green",
-      });
-      onSuccess();
-    } catch (error: any) {
-      notifications.show({
-        title: "Erro",
-        message: error.message,
-        color: "red",
-      });
-    } finally {
+    if (isNaN(id)) {
       setLoading(false);
+      return;
     }
-  };
+
+    getClientData(id)
+      .then((data) => {
+        setClient(data);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [id]);
+
+  if (loading) {
+    return (
+      <Center h="50vh">
+        <Loader color="privacyGold" />
+      </Center>
+    );
+  }
+
+  if (!client) {
+    return (
+      <Container fluid>
+        <Title order={2} mb="lg">
+          Cliente não encontrado
+        </Title>
+        <Paper withBorder shadow="md" p="lg">
+          <Text>
+            O cliente com o ID {id} não foi encontrado no sistema.
+          </Text>
+        </Paper>
+      </Container>
+    );
+  }
 
   return (
-    <Modal
-      opened={opened}
-      onClose={onClose}
-      title="Adicionar Novo Cliente"
-      centered
-      size="xl"
-    >
-      <LoadingOverlay visible={loading} />
-      <form onSubmit={form.onSubmit(handleSubmit)}>
-        <Stack>
-          <TextInput
-            required
-            label="Nome"
-            placeholder="Ex: João da Silva"
-            {...form.getInputProps("name")}
-          />
-          <TextInput
-            label="Telefone (com DDD)"
-            placeholder="Ex: 47999887766"
-            {...form.getInputProps("phoneNumber")}
-          />
-          <Select
-            label="Status"
-            data={Object.values(ClientStatus).map((s) => ({
-              label: s,
-              value: s,
-            }))}
-            {...form.getInputProps("status")}
-          />
-          <Select
-            label="Adquirido por (CAC)"
-            placeholder="Selecione um staff"
-            data={staffList}
-            searchable
-            clearable
-            {...form.getInputProps("acquiredByStaffId")}
-          />
-          <JsonInput
-            label="Perfil do Cliente (CRM)"
-            description="Edite o JSON com os detalhes do cliente."
-            formatOnBlur
-            autosize
-            minRows={15}
-            {...form.getInputProps("crmData")}
-          />
-          <Button type="submit" mt="md" color="privacyGold" loading={loading}>
-            Salvar Cliente
-          </Button>
-        </Stack>
-      </form>
-    </Modal>
+    <Container fluid>
+      <Title order={2} mb="lg">
+        Perfil do Cliente: {client.name}
+      </Title>
+      <ClientDetail client={client} />
+      <ClientVisitHistory visits={client.visits} />
+    </Container>
   );
 }
+
