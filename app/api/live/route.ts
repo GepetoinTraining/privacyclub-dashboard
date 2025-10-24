@@ -31,11 +31,12 @@ export async function GET(req: NextRequest) {
       },
     });
 
+    // FIX 2: Convert Prisma.Decimal to string to match the new type
     const liveClients: LiveClient[] = liveVisits.map((v) => ({
       visitId: v.id,
       clientId: v.client?.id || 0,
       name: v.client?.name || `Anônimo (Visita ${v.id})`,
-      consumableCreditRemaining: v.consumableCreditRemaining,
+      consumableCreditRemaining: v.consumableCreditRemaining.toString(), // <-- CONVERTED
     }));
 
     // 2. Get Live Hostesses
@@ -78,3 +79,4 @@ export async function GET(req: NextRequest) {
     );
   }
 }
+

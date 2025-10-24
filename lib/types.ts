@@ -85,26 +85,28 @@ export type AggregatedStock = {
   reorderThreshold: number | null;
 };
 
+// Live Data (for POS & Live Map)
 // ---
-// 8. LIVE DATA & POS TAB
-// ---
-export type LiveClient = Visit & {
-  client: Client;
+
+// FIX 1: This is the new, correct definition for LiveClient
+// It matches the object you are creating in app/api/live/route.ts
+export type LiveClient = {
+  visitId: number;
+  clientId: number;
+  name: string;
+  consumableCreditRemaining: string | number; // Expect string or number for JSON
 };
 
-export type LiveHostess = HostShift & {
-  host: Host;
+export type LiveHostess = {
+  shiftId: number;
+  hostId: number;
+  stageName: string;
 };
 
 export type LiveData = {
-  liveClients: LiveClient[];
-  liveHostesses: LiveHostess[];
+  clients: LiveClient[];
+  hostesses: LiveHostess[];
   products: Product[];
-  environments: Environment[];
-};
-
-export type CartItem = Product & {
-  quantity: number;
 };
 
 // ---
