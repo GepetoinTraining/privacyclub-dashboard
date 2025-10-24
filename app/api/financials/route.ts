@@ -82,6 +82,7 @@ export async function GET(req: NextRequest) {
     const data: FinancialsData = {
       staffCommissions: staffCommissions as any,
       partnerPayouts: partnerPayouts as any,
+      staffPayouts: [], // Placeholder, as we don't have a separate staff payouts logic yet
       // FIX 2: Use correct property name (lowercase 'h') and new variable name
       hostessPayouts: hostessPayoutData,
     };
