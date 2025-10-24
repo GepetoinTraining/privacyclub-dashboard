@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
       }
     })
     // Step 2: Filter using the number/Decimal
-    .filter(h => h.totalUnpaidCommissions > 0)
+    .filter(h => Number(h.totalUnpaidCommissions) > 0) // <-- FIX IS HERE
     // Step 3: Now map the filtered results to convert to a string
     .map(h => ({
       ...h,
@@ -82,7 +82,6 @@ export async function GET(req: NextRequest) {
     const data: FinancialsData = {
       staffCommissions: staffCommissions as any,
       partnerPayouts: partnerPayouts as any,
-      staffPayouts: staffCommissions as any,
       // FIX 2: Use correct property name (lowercase 'h') and new variable name
       hostessPayouts: hostessPayoutData,
     };
@@ -99,7 +98,4 @@ export async function GET(req: NextRequest) {
     );
   }
 }
-
-
-
 
