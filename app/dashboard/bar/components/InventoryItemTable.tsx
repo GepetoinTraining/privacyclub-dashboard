@@ -89,7 +89,7 @@ export function InventoryItemTable({
             </Table.Tr>
           )}
         </Table.Tbody>
-      </Table.ScrollContainer>
+      </Table>
     </Table.ScrollContainer>
   );
 }

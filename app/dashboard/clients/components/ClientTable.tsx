@@ -51,7 +51,7 @@ export function ClientTable({ clients, loading }: ClientTableProps) {
           {item.lastVisitDate
             ? dayjs(item.lastVisitDate).format("DD/MM/YYYY")
             : "N/A"}
-        </Key>
+        </Text>
       </Table.Td>
     </Table.Tr>
   ));

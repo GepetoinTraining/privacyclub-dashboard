@@ -98,7 +98,7 @@ export function CurrentStockTable({
             </Table.Tr>
           )}
         </Table.Tbody>
-      </Table.ScrollContainer>
+      </Table>
     </Table.ScrollContainer>
   );
 }
