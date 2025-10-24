@@ -27,10 +27,10 @@ export type StaffSession = {
 // ---
 // 2. API RESPONSE TYPES
 // ---
-export type ApiResponse<T = any> = {
+export type ApiResponse<T = unknown> = {
   success: boolean;
-  message?: string;
   data?: T;
+  error?: string; // This is the fix for the build error
 };
 
 // ---
