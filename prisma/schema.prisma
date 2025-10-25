@@ -142,19 +142,19 @@ model Partner {
 // SECTION 3: PHYSICAL SPACES & INVENTORY
 // ---
 
-model Environment {
-  id        Int      @id @default(autoincrement())
-  name      String
-  capacity  Int?
-  type      EnvironmentType
+    model Environment {
+      id        Int      @id @default(autoincrement())
+      name      String   @unique // <-- Add @unique here
+      capacity  Int?
+      type      EnvironmentType
 
-  // Relations
-  displaySpaces      DisplaySpace[]
-  visits             Visit[]
-  hostShifts         HostShift[]
-  staffShifts        StaffShift[]
-  activeInteractions ActiveInteraction[]
-}
+      // Relations
+      displaySpaces      DisplaySpace[]
+      visits             Visit[]
+      hostShifts         HostShift[]
+      staffShifts        StaffShift[]
+      activeInteractions ActiveInteraction[]
+    }
 
 model DisplaySpace {
   id                      Int      @id @default(autoincrement())
