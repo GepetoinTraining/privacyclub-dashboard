@@ -1,3 +1,5 @@
+"use client"; // <--- ADD THIS DIRECTIVE AT THE TOP
+
 import { AppShell, Burger, Group, Skeleton } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { MainNav } from "./components/MainNav";
