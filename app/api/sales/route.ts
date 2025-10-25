@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { ApiResponse, SalePayload } from "@/lib/types";
 import { NextRequest, NextResponse } from "next/server";
+// Ensure Prisma, Sale, and StaffRole are imported
 import { Prisma, Sale, StaffRole } from "@prisma/client";
 
 /**
@@ -11,10 +12,12 @@ import { Prisma, Sale, StaffRole } from "@prisma/client";
  */
 export async function POST(req: NextRequest) {
   const session = await getSession();
+
+  // Check if staff is logged in and has necessary session info
   if (
     !session.staff?.isLoggedIn ||
     !session.staff.shiftId ||
-    !session.staff.role
+    !session.staff.role // Make sure role exists
   ) {
     return NextResponse.json<ApiResponse>(
       { success: false, error: "Não autorizado. Faça check-in." },
@@ -22,16 +25,18 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Only Servers, Bartenders, or Admins (implied) can make sales
-  if (
-    ![StaffRole.Server, StaffRole.Bartender].includes(session.staff.role) &&
-    session.staff.pin !== "1234" // Allow admin override
-  ) {
+  // Only Servers, Bartenders, or Admins (implied by PIN check) can make sales
+  // Use direct comparison instead of .includes()
+  const isAllowedRole = session.staff.role === StaffRole.Server || session.staff.role === StaffRole.Bartender;
+  const isAdminOverride = session.staff.pin === "1234"; // Check if PIN matches admin
+
+  if (!isAllowedRole && !isAdminOverride) {
     return NextResponse.json<ApiResponse>(
       { success: false, error: "Função não autorizada para vendas" },
       { status: 403 }
     );
   }
+
 
   const staffShiftId = session.staff.shiftId;
   const staffId = session.staff.id;
@@ -49,16 +54,17 @@ export async function POST(req: NextRequest) {
 
     // --- 1. Get all required data in one go ---
     const [visit, host, products] = await Promise.all([
-      prisma.visit.findUnique({ where: { id: visitId } }),
+      prisma.visit.findUnique({ where: { id: visitId }, include: { client: true } }), // Include client here
       prisma.host.findUnique({ where: { id: hostId } }),
       prisma.product.findMany({
         where: { id: { in: cart.map((item) => item.productId) } },
       }),
     ]);
 
-    if (!visit)
+    // Added null check for visit.client
+    if (!visit || !visit.client)
       return NextResponse.json<ApiResponse>(
-        { success: false, error: "Visita não encontrada" },
+        { success: false, error: "Visita ou cliente não encontrado(a)" },
         { status: 404 }
       );
     if (!host)
@@ -94,13 +100,15 @@ export async function POST(req: NextRequest) {
         productId: product.id,
         staffShiftId: staffShiftId,
         quantity: item.quantity,
-        priceAtSale: priceAtSale,
-        commissionEarned: itemCommission,
+        priceAtSale: priceAtSale, // Store as number for now
+        commissionEarned: itemCommission, // Store as number for now
         // Payment split will be set after credit calculation
+        paidWithCredit: 0, // Initialize
+        paidWithCashCard: 0, // Initialize
       });
     }
 
-// --- 3. Calculate payment split ---
+    // --- 3. Calculate payment split ---
     // Convert Decimal credit to a number first
     const currentCreditNumber = Number(visit.consumableCreditRemaining);
 
@@ -111,41 +119,50 @@ export async function POST(req: NextRequest) {
     const cashToCharge = totalSaleAmount - creditToUse; // Now number - number
     const newCreditRemaining = currentCreditNumber - creditToUse; // Now number - number
 
-    // Apply payment split to all sale items
-    // (We just log the total split on the *first* item for simplicity,
-    // or you could prorate it, but this is simpler for reporting)
+    // Apply payment split and convert numbers back to Decimal for Prisma
     saleItemsData.forEach((item, index) => {
       if (index === 0) {
-        item.paidWithCredit = creditToUse;
-        item.paidWithCashCard = cashToCharge;
+        // Ensure Prisma receives Decimal
+        item.paidWithCredit = new Prisma.Decimal(creditToUse);
+        item.paidWithCashCard = new Prisma.Decimal(cashToCharge);
       } else {
-        item.paidWithCredit = 0;
-        item.paidWithCashCard = 0;
+        item.paidWithCredit = new Prisma.Decimal(0);
+        item.paidWithCashCard = new Prisma.Decimal(0);
       }
+      // Ensure commissionEarned and priceAtSale are also Decimals for Prisma
+      item.priceAtSale = new Prisma.Decimal(item.priceAtSale as number);
+      item.commissionEarned = new Prisma.Decimal(item.commissionEarned as number);
     });
 
+
     // --- 4. Create Transaction ---
-    const [_, updatedVisit] = await prisma.$transaction([
+    const transactionResults = await prisma.$transaction([
       // 1. Create all Sale records
       prisma.sale.createMany({
         data: saleItemsData,
       }),
-      
+
       // 2. Update Visit credit
       prisma.visit.update({
         where: { id: visit.id },
         data: {
-          consumableCreditRemaining: newCreditRemaining,
+          // Prisma expects Decimal here
+          consumableCreditRemaining: new Prisma.Decimal(newCreditRemaining),
         },
       }),
 
       // 3. Update Client lifetime stats
       prisma.client.update({
-        where: { id: visit.clientId! }, // We know this exists from the visit
+        where: { id: visit.clientId! }, // We know this exists from the visit check
         data: {
-          lifetimeSpend: { increment: totalSaleAmount },
-          lastVisitSpend: { increment: totalSaleAmount }, // This assumes one visit at a time
+          // Use Prisma.Decimal for increments/sets
+          lifetimeSpend: { increment: new Prisma.Decimal(totalSaleAmount) },
+          lastVisitSpend: new Prisma.Decimal(totalSaleAmount), // Set directly
           lastVisitDate: new Date(),
+          // Increment totalVisits only if it's the first sale of this visit maybe?
+          // Or just update lastVisitDate and let analytics figure out visit count.
+          // Keeping simple for now:
+          // totalVisits: { increment: 1 }, // Reconsider this logic
         },
       }),
 
@@ -154,24 +171,34 @@ export async function POST(req: NextRequest) {
         data: {
           staffId: staffId,
           commissionType: "sale",
-          amountEarned: totalSaleAmount * 0.02, // 2% hardcoded, make this dynamic later
-          relatedSaleId: undefined, // Can't link to a createMany,
+          // Prisma expects Decimal
+          amountEarned: new Prisma.Decimal(totalSaleAmount * 0.02), // 2% hardcoded
+          relatedSaleId: undefined, // Cannot link directly to createMany results easily
           notes: `Comissão de 2% sobre venda de R$ ${totalSaleAmount.toFixed(2)}`,
         }
       })
     ]);
 
-    // Triggers for StockLedger and PartnerPayout will run automatically
+    // Extract the updatedVisit result (it should be the second element)
+     // Cast to the expected return type of the update operation
+    const updatedVisit = transactionResults[1] as { consumableCreditRemaining: Prisma.Decimal };
 
-    return NextResponse.json<ApiResponse>(
-      { success: true, data: { newCredit: updatedVisit.consumableCreditRemaining } },
+
+    // --- 4b. Calculate and Update Client Average Spend (outside initial transaction for simplicity) ---
+    // A more robust solution might use a database trigger or a separate update after the transaction.
+
+
+    return NextResponse.json<ApiResponse<{ newCredit: number }>>( // Return number
+      { success: true, data: { newCredit: Number(updatedVisit.consumableCreditRemaining) } }, // Convert final Decimal back to number
       { status: 201 }
     );
   } catch (error: any) {
     console.error("POST /api/sales error:", error);
+    const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
     return NextResponse.json<ApiResponse>(
-      { success: false, error: "Erro ao processar venda: " + error.message },
+      { success: false, error: `Erro ao processar venda: ${errorMessage}` },
       { status: 500 }
     );
   }
 }
+
