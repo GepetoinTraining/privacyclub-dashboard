@@ -51,13 +51,17 @@ function PosClientPage() {
     useDisclosure(false);
 
   const fetchLiveData = async () => {
-    setLoading(true);
+    // Keep setLoading(true) outside the try block if desired
+    // setLoading(true);
     try {
       const response = await fetch("/api/live");
       if (!response.ok) throw new Error("Failed to fetch live data");
       const result: ApiResponse<LiveData> = await response.json();
       if (result.success && result.data) {
         setLiveData(result.data);
+      } else {
+         // Throw error if data is missing even if success is true
+         throw new Error(result.error || "Could not load live data");
       }
     } catch (error: any) {
       console.error(error);
@@ -66,10 +70,13 @@ function PosClientPage() {
         message: error.message,
         color: "red",
       });
+      // Optionally set liveData to null or an empty structure on error
+      // setLiveData(null);
     } finally {
-      setLoading(false);
+      setLoading(false); // Ensure loading is set to false in finally
     }
   };
+
 
   useEffect(() => {
     fetchLiveData();
@@ -84,8 +91,9 @@ function PosClientPage() {
     fetchLiveData();
   };
 
+  // Calculate cart total, converting Decimal to number
   const cartTotal = cart.reduce(
-    (acc, item) => acc + item.product.salePrice * item.quantity,
+    (acc, item) => acc + (Number(item.product.salePrice) * item.quantity), // Convert salePrice here
     0
   );
 
@@ -99,7 +107,7 @@ function PosClientPage() {
           client={selectedClient}
           hostess={selectedHostess}
           cart={cart}
-          total={cartTotal}
+          total={cartTotal} // Pass the calculated number total
         />
       )}
 
@@ -163,6 +171,7 @@ function PosClientPage() {
                   color="red"
                   size="xs"
                   onClick={resetSale}
+                  disabled={cart.length === 0 && !selectedClient && !selectedHostess} // Disable if nothing to reset
                 >
                   Limpar Pedido
                 </Button>
