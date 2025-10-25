@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { ApiResponse, ClientDetails } from "@/lib/types"; // Import ClientDetails
 import { NextRequest, NextResponse } from "next/server";
-import { Client, Prisma } from "@prisma/client"; // Import Prisma for Decimal
+import { Client, Prisma, ClientStatus } from "@prisma/client";
 
 type GetParams = {
   params: { id: string };
@@ -106,15 +106,48 @@ export async function PATCH(req: NextRequest, { params }: GetParams) { // Change
   try {
     const body = await req.json();
     // Allow updating more fields if needed
-    const { crmData, name, phoneNumber, status, acquiredByStaffId } = body;
+    // Assuming acquiredByStaffId comes as string | null from JSON
+    const { crmData, name, phoneNumber, status, acquiredByStaffId } = body as {
+        crmData?: any;
+        name?: string;
+        phoneNumber?: string | null;
+        status?: ClientStatus; // Make sure ClientStatus is imported if not already
+        acquiredByStaffId?: string | null;
+    };
+
 
     // Build update data object conditionally
     const updateData: Prisma.ClientUpdateInput = {};
     if (crmData && typeof crmData === 'object') updateData.crmData = crmData;
     if (name !== undefined) updateData.name = name;
+    // Allow setting phone number to null
     if (phoneNumber !== undefined) updateData.phoneNumber = phoneNumber;
     if (status !== undefined) updateData.status = status;
-    if (acquiredByStaffId !== undefined) updateData.acquiredByStaffId = acquiredByStaffId === null ? null : parseInt(acquiredByStaffId);
+
+    // Handle acquiredByStaffId update using connect/disconnect
+    if (acquiredByStaffId !== undefined) {
+      if (acquiredByStaffId === null) {
+        // If the ID is explicitly null, disconnect the relation
+        updateData.acquiredByStaff = {
+          disconnect: true,
+        };
+      } else {
+        // If the ID is provided (as a string from JSON), connect to that staff ID
+        // Ensure parsing is safe
+        const staffIdNumber = parseInt(acquiredByStaffId);
+        if (!isNaN(staffIdNumber)) {
+             updateData.acquiredByStaff = {
+               connect: { id: staffIdNumber },
+             };
+        } else {
+            // Handle case where acquiredByStaffId is present but not a valid number string
+             return NextResponse.json<ApiResponse>(
+                { success: false, error: "ID de staff inválido fornecido para acquiredByStaffId" },
+                { status: 400 }
+            );
+        }
+      }
+    }
 
 
     if (Object.keys(updateData).length === 0) {
@@ -124,27 +157,9 @@ export async function PATCH(req: NextRequest, { params }: GetParams) { // Change
       );
     }
 
-    const updatedClient = await prisma.client.update({
-      where: { id },
-      data: updateData,
-    });
-
-    return NextResponse.json<ApiResponse<Client>>(
-      { success: true, data: updatedClient },
-      { status: 200 }
-    );
+    // ... rest of existing code ...
   } catch (error: any) {
-    console.error(`PATCH /api/clients/${id} error:`, error);
-     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-       // Handle unique constraint violation (e.g., phone number)
-        return NextResponse.json<ApiResponse>(
-          { success: false, error: `Falha na restrição única: ${error.meta?.target}` },
-          { status: 409 } // Conflict
-        );
-    }
-    return NextResponse.json<ApiResponse>(
-      { success: false, error: "Erro ao atualizar cliente" },
-      { status: 500 }
-    );
+    // ... existing error handling ...
   }
 }
+
