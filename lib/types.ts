@@ -137,40 +137,30 @@ export type FinancialsData = {
 };
 
 // ---
-// 10. REPORTS TAB
+// Reports
 // ---
-export type KpiData = {
-  totalRevenue: number;
-  totalSales: number;
-  avgRevenuePerClient: number;
-  newClients: number;
-};
-
-export type SalesChartData = {
-  date: string;
-  sales: number;
-};
-
-export type HostessLeaderboardItem = {
-  hostId: number;
-  stageName: string;
-  totalCommission: number;
-  totalSales: number;
-};
-
-export type ProductLeaderboardItem = {
-  productId: number;
-  name: string;
-  totalSold: number;
-  totalRevenue: number;
-};
-
 export type ReportData = {
-  kpis: KpiData;
-  salesChart: SalesChartData[];
-  hostessLeaderboard: HostessLeaderboardItem[];
-  productLeaderboard: ProductLeaderboardItem[];
+  kpis: {
+    totalRevenue: number;
+    totalSales: number;
+    avgSaleValue: number;
+    newClients: number;
+  };
+  salesOverTime: {
+    date: string;
+    Revenue: number;
+  }[];
+  hostessLeaderboard: {
+    name: string;
+    Sales: number;
+  }[];
+  productLeaderboard: {
+    name: string;
+    Sales: number;
+  }[];
 };
+
+
 
 // ---
 // QR / Client Token

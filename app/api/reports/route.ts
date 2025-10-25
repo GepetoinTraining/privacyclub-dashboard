@@ -1,8 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
-import { ApiResponse, ReportData, ReportStat, SalesDataPoint, HostessLeaderboardItem, ProductLeaderboardItem } from "@/lib/types";
+import { ApiResponse, ReportData } from "@/lib/types"; // FIX: Import only ReportData
 import { NextRequest, NextResponse } from "next/server";
 import dayjs from "dayjs";
+import { Prisma } from "@prisma/client";
 
 /**
  * GET /api/reports
@@ -21,42 +22,26 @@ export async function GET(req: NextRequest) {
   try {
     const thirtyDaysAgo = dayjs().subtract(30, "days").toDate();
 
-    // --- 1. Stats ---
-    const salesLast30Days = await prisma.sale.aggregate({
+    // --- 1. KPIs ---
+    const totalSalesData = await prisma.sale.aggregate({
       _sum: { priceAtSale: true },
+      _count: { id: true },
+    });
+    const newClients = await prisma.client.count({
       where: { createdAt: { gte: thirtyDaysAgo } },
     });
 
-    const totalSales = await prisma.sale.aggregate({
-      _sum: { priceAtSale: true },
-    });
+    const totalRevenue = Number(totalSalesData._sum.priceAtSale || 0);
+    const totalSales = totalSalesData._count.id;
+    const avgSaleValue = totalRevenue / (totalSales || 1);
 
-    const totalClients = await prisma.client.count();
-    
-    const avgSpend = (totalSales._sum.priceAtSale || 0) / (totalClients || 1);
-
-    const stats: ReportStat[] = [
-      {
-        title: "Faturamento (Últimos 30d)",
-        value: `R$ ${(salesLast30Days._sum.priceAtSale || 0).toFixed(2)}`,
-        diff: 0, // Placeholder
-      },
-      {
-        title: "Faturamento Total",
-        value: `R$ ${(totalSales._sum.priceAtSale || 0).toFixed(2)}`,
-        diff: 0,
-      },
-      {
-        title: "Total de Clientes",
-        value: totalClients.toString(),
-        diff: 0,
-      },
-      {
-        title: "Gasto Médio p/ Cliente",
-        value: `R$ ${avgSpend.toFixed(2)}`,
-        diff: 0,
-      },
-    ];
+    // FIX: Match the kpis object structure from lib/types.ts
+    const kpis: ReportData["kpis"] = {
+      totalRevenue: totalRevenue,
+      totalSales: totalSales,
+      avgSaleValue: avgSaleValue,
+      newClients: newClients,
+    };
 
     // --- 2. Sales by Day (Chart) ---
     const salesByDayRaw = await prisma.sale.groupBy({
@@ -74,21 +59,27 @@ export async function GET(req: NextRequest) {
 
     // Aggregate by day (since raw data is by timestamp)
     const salesMap = new Map<string, number>();
-    salesByDayRaw.forEach(sale => {
-      const date = dayjs(sale.createdAt).format("DD/MM");
+    salesByDayRaw.forEach((sale) => {
+      const date = dayjs(sale.createdAt).format("DD/MM/YYYY");
       const currentSales = salesMap.get(date) || 0;
-      salesMap.set(date, currentSales + (sale._sum.priceAtSale || 0));
+      // FIX: Convert Decimal to Number before adding
+      const newSales = currentSales + Number(sale._sum.priceAtSale || 0);
+      salesMap.set(date, newSales);
     });
-    
-    const salesByDay: SalesDataPoint[] = Array.from(salesMap.entries()).map(
-      ([date, sales]) => ({ date, sales: parseFloat(sales.toFixed(2)) })
-    );
+
+    // FIX: Match salesOverTime type ({ date, Revenue })
+    const salesOverTime: ReportData["salesOverTime"] = Array.from(
+      salesMap.entries()
+    ).map(([date, sales]) => ({
+      date: date,
+      Revenue: parseFloat(sales.toFixed(2)), // FIX: Use 'Revenue' (capital R)
+    }));
 
     // --- 3. Top Hostesses ---
     const topHostessesRaw = await prisma.sale.groupBy({
       by: ["hostId"],
       _sum: {
-        priceAtSale: true,
+        priceAtSale: true, // This is what 'Sales' will be
       },
       orderBy: {
         _sum: {
@@ -97,53 +88,56 @@ export async function GET(req: NextRequest) {
       },
       take: 5,
     });
-    
-    const hostesses = await prisma.host.findMany({
-      where: { id: { in: topHostessesRaw.map(h => h.hostId) }}
+
+    const hosts = await prisma.host.findMany({
+      where: { id: { in: topHostessesRaw.map((h) => h.hostId) } },
     });
-    
-    const topHostesses: HostessLeaderboardItem[] = topHostessesRaw.map(h => {
-      const host = hostesses.find(host => host.id === h.hostId);
-      return {
-        hostId: h.hostId,
-        stageName: host?.stageName || 'Host Deletada',
-        totalSales: h._sum.priceAtSale || 0
-      }
-    });
+
+    // FIX: Match hostessLeaderboard type ({ name, Sales })
+    const hostessLeaderboard: ReportData["hostessLeaderboard"] =
+      topHostessesRaw.map((h) => {
+        const host = hosts.find((host) => host.id === h.hostId);
+        return {
+          name: host?.stageName || "Host Deletada",
+          Sales: Number(h._sum.priceAtSale || 0), // FIX: Use 'Sales' (capital S)
+        };
+      });
 
     // --- 4. Top Products ---
     const topProductsRaw = await prisma.sale.groupBy({
       by: ["productId"],
       _sum: {
-        quantity: true,
+        priceAtSale: true, // This is what 'Sales' will be
       },
       orderBy: {
         _sum: {
-          quantity: "desc",
+          priceAtSale: "desc",
         },
       },
       take: 5,
     });
-    
+
     const products = await prisma.product.findMany({
-      where: { id: { in: topProductsRaw.map(p => p.productId) }}
-    });
-    
-    const topProducts: ProductLeaderboardItem[] = topProductsRaw.map(p => {
-      const product = products.find(prod => prod.id === p.productId);
-      return {
-        productId: p.productId,
-        name: product?.name || 'Produto Deletado',
-        totalSold: p._sum.quantity || 0
-      }
+      where: { id: { in: topProductsRaw.map((p) => p.productId) } },
     });
 
+    // FIX: Match productLeaderboard type ({ name, Sales })
+    const productLeaderboard: ReportData["productLeaderboard"] =
+      topProductsRaw.map((p) => {
+        const product = products.find((prod) => prod.id === p.productId);
+        return {
+          name: product?.name || "Produto Deletado",
+          Sales: Number(p._sum.priceAtSale || 0), // FIX: Use 'Sales' (capital S)
+        };
+      });
+
     // --- Assemble Report Data ---
+    // FIX: Match the ReportData structure (e.g., 'salesOverTime')
     const data: ReportData = {
-      stats,
-      salesByDay,
-      topHostesses,
-      topProducts,
+      kpis: kpis,
+      salesOverTime: salesOverTime,
+      hostessLeaderboard: hostessLeaderboard,
+      productLeaderboard: productLeaderboard,
     };
 
     return NextResponse.json<ApiResponse<ReportData>>(
@@ -158,3 +152,4 @@ export async function GET(req: NextRequest) {
     );
   }
 }
+
