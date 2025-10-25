@@ -2,14 +2,27 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { ApiResponse } from "@/lib/types";
 import { NextRequest, NextResponse } from "next/server";
-import { InventoryItem, SmallestUnit } from "@prisma/client"; // Added SmallestUnit
+import { InventoryItem, SmallestUnit, Prisma } from "@prisma/client";
 
-// Define a type for the serialized item including createdAt
-type SerializedInventoryItem = Omit<InventoryItem, 'storageUnitSizeInSmallest' | 'reorderThresholdInSmallest'> & {
+// Define a type for the data structure returned by the 'select' query
+// REMOVED createdAt
+type SelectedInventoryItem = {
+  id: number;
+  name: string;
+  storageUnitName: string | null;
+  smallestUnit: SmallestUnit;
+  storageUnitSizeInSmallest: Prisma.Decimal | null;
+  reorderThresholdInSmallest: Prisma.Decimal | null;
+  // createdAt: Date; // REMOVED
+};
+
+// Define the final serialized type
+// REMOVED createdAt from Omit if it was there implicitly
+type SerializedInventoryItem = Omit<SelectedInventoryItem, 'storageUnitSizeInSmallest' | 'reorderThresholdInSmallest'> & {
   storageUnitSizeInSmallest: number | null;
   reorderThresholdInSmallest: number | null;
-  createdAt: Date; // Ensure createdAt is part of the type
 };
+
 
 /**
  * GET /api/inventory/items
@@ -25,22 +38,35 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const items: InventoryItem[] = await prisma.inventoryItem.findMany({
+    // REMOVED createdAt from select
+    const items: SelectedInventoryItem[] = await prisma.inventoryItem.findMany({
+      select: {
+        id: true,
+        name: true,
+        storageUnitName: true,
+        smallestUnit: true,
+        storageUnitSizeInSmallest: true,
+        reorderThresholdInSmallest: true,
+        // createdAt: true, // REMOVED
+      },
       orderBy: { name: "asc" },
-      // Select all fields including createdAt by default
     });
 
     // Convert Prisma Decimal fields to numbers
+    // REMOVED createdAt from mapping
     const serializedItems: SerializedInventoryItem[] = items.map(item => ({
-      ...item,
-      // Keep createdAt as Date, JSON stringification/parsing will handle it
+       id: item.id,
+       name: item.name,
+       storageUnitName: item.storageUnitName,
+       smallestUnit: item.smallestUnit,
+       // createdAt: item.createdAt, // REMOVED
+       // Overwrite the Decimal fields with their number equivalents
       storageUnitSizeInSmallest: item.storageUnitSizeInSmallest ? Number(item.storageUnitSizeInSmallest) : null,
       reorderThresholdInSmallest: item.reorderThresholdInSmallest ? Number(item.reorderThresholdInSmallest) : null,
     }));
 
 
     return NextResponse.json<ApiResponse<SerializedInventoryItem[]>>(
-      // Return the correctly typed serialized items
       { success: true, data: serializedItems },
       { status: 200 }
     );
