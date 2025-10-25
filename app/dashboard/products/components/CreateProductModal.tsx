@@ -10,9 +10,10 @@ import {
   NumberInput,
   SegmentedControl,
   Paper,
+  Title // Added Title import
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
-import { InventoryItem, Partner, Product } from "@prisma/client";
+import { InventoryItem, Partner, Product, Prisma } from "@prisma/client"; // Added Prisma
 import { useState, useEffect } from "react";
 import { ApiResponse } from "@/lib/types";
 import { notifications } from "@mantine/notifications";
@@ -50,62 +51,103 @@ export function CreateProductModal({
     validate: {
       name: (val) => (val.trim().length < 2 ? "Nome inválido" : null),
       salePrice: (val) => (val <= 0 ? "Preço de venda deve ser positivo" : null),
-      costPrice: (val) => (val < 0 ? "Custo não pode ser negativo" : null),
-      inventoryItemId: (val, values) =>
-        !val ? "Item de estoque é obrigatório" : null,
-      partnerId: (val, values) =>
-        productType === "consignment" && !val
-          ? "Parceiro é obrigatório"
-          : null,
+      // Cost price validation depends on type, handle in submit or adjust here
+      costPrice: (val, values) => {
+        if (val === null || val === undefined || val < 0) return "Custo não pode ser negativo";
+        // If consignment and partner selected, cost price (amount due) could be 0, but usually not negative
+        if (productType === 'consignment' && !values.partnerId) return null; // Ignore if partner not yet selected
+        return null;
+      },
+      inventoryItemId: (val) => (!val ? "Item de estoque é obrigatório" : null),
+      deductionAmount: (val) => (val <= 0 ? "Quantidade a deduzir deve ser positiva" : null), // Added validation
+      partnerId: (val) => (productType === "consignment" && !val ? "Parceiro é obrigatório" : null),
     },
   });
 
   // Fetch data for dropdowns when modal opens
   useEffect(() => {
-    if (opened) {
-      // Fetch inventory items
-      fetch("/api/inventory/items")
-        .then((res) => res.json())
-        .then((result: ApiResponse<InventoryItem[]>) => {
-          if (result.success && result.data) {
-            setInventoryItems(
-              result.data.map((item) => ({
-                label: `${item.name} (${item.storageUnitName})`,
-                value: item.id.toString(),
-              }))
-            );
-          }
-        });
+    let isMounted = true; // Flag to prevent state updates on unmounted component
 
-      // Fetch partners
-      fetch("/api/partners")
-        .then((res) => res.json())
-        .then((result: ApiResponse<Partner[]>) => {
-          if (result.success && result.data) {
-            setPartners(
-              result.data.map((partner) => ({
-                label: partner.companyName,
-                value: partner.id.toString(),
-              }))
-            );
-          }
-        });
+    const fetchData = async () => {
+      try {
+        // Fetch inventory items
+        const itemsRes = await fetch("/api/inventory/items");
+        const itemsResult: ApiResponse<InventoryItem[]> = await itemsRes.json();
+        if (isMounted && itemsResult.success && itemsResult.data) {
+          setInventoryItems(
+            itemsResult.data.map((item) => ({
+              label: `${item.name} (${item.storageUnitName || 'Unidade'})`, // Added fallback for storageUnitName
+              value: item.id.toString(),
+            }))
+          );
+        }
+
+        // Fetch partners
+        const partnersRes = await fetch("/api/partners");
+        const partnersResult: ApiResponse<Partner[]> = await partnersRes.json();
+        if (isMounted && partnersResult.success && partnersResult.data) {
+          setPartners(
+            partnersResult.data.map((partner) => ({
+              label: partner.companyName,
+              value: partner.id.toString(),
+            }))
+          );
+        }
+      } catch (error) {
+        console.error("Failed to fetch dropdown data:", error);
+        if (isMounted) {
+            notifications.show({
+                title: "Erro ao carregar dados",
+                message: "Não foi possível buscar itens de inventário ou parceiros.",
+                color: "red",
+            });
+        }
+      }
+    };
+
+
+    if (opened) {
+      fetchData();
     } else {
       // Reset form when modal closes
       form.reset();
       setProductType("own");
+      // Clear dropdowns too if desired
+      // setInventoryItems([]);
+      // setPartners([]);
     }
-  }, [opened]);
+
+    // Cleanup function
+    return () => {
+      isMounted = false;
+    };
+  }, [opened]); // Dependency array includes 'opened'
 
   const handleSubmit = async (values: typeof form.values) => {
     setLoading(true);
 
+    // Ensure numeric conversion just before sending
     const payload = {
       ...values,
+      costPrice: Number(values.costPrice) || 0,
+      salePrice: Number(values.salePrice) || 0,
+      deductionAmount: Number(values.deductionAmount) || 1,
       partnerId: productType === "own" ? null : values.partnerId,
-      // For consignment, costPrice is what we *owe* them.
-      // For own stock, costPrice is what *we* paid.
+      inventoryItemId: values.inventoryItemId ? parseInt(values.inventoryItemId) : null,
     };
+
+    // Double-check required fields based on type
+     if (payload.inventoryItemId === null) {
+       notifications.show({ title: "Erro", message: "Item de estoque é obrigatório.", color: "red" });
+       setLoading(false);
+       return;
+     }
+     if (productType === 'consignment' && payload.partnerId === null) {
+         notifications.show({ title: "Erro", message: "Parceiro é obrigatório para item consignado.", color: "red" });
+         setLoading(false);
+         return;
+     }
+
 
     try {
       const response = await fetch("/api/products", {
@@ -122,7 +164,7 @@ export function CreateProductModal({
         message: `Produto "${values.name}" criado.`,
         color: "green",
       });
-      onSuccess();
+      onSuccess(); // Closes modal and refreshes data in parent
     } catch (error: any) {
       notifications.show({
         title: "Erro",
@@ -133,6 +175,20 @@ export function CreateProductModal({
       setLoading(false);
     }
   };
+
+  // Reset partnerId if switching from consignment to own
+  const handleTypeChange = (value: string) => {
+    const newType = value as "own" | "consignment";
+    setProductType(newType);
+    if (newType === "own") {
+      form.setFieldValue('partnerId', null);
+      form.setFieldValue('costPrice', 0); // Reset cost price for own stock? Or maybe keep it? Depends on workflow.
+      form.clearFieldError('partnerId'); // Clear potential validation error
+    } else {
+        form.setFieldValue('costPrice', 0); // Reset cost for consignment, as it might be different
+    }
+  };
+
 
   return (
     <Modal
@@ -149,7 +205,8 @@ export function CreateProductModal({
             fullWidth
             color="privacyGold"
             value={productType}
-            onChange={(val: "own" | "consignment") => setProductType(val)}
+            // Remove explicit type on `val`, use assertion on setter
+            onChange={(val) => handleTypeChange(val as "own" | "consignment")}
             data={[
               { label: "Estoque Próprio", value: "own" },
               { label: "Consignado (Parceiro)", value: "consignment" },
@@ -172,6 +229,7 @@ export function CreateProductModal({
             label="Preço de Venda (R$)"
             placeholder="Preço no menu para o cliente"
             min={0}
+            step={0.01} // Allow cents
             decimalScale={2}
             fixedDecimalScale
             {...form.getInputProps("salePrice")}
@@ -187,6 +245,7 @@ export function CreateProductModal({
                   placeholder="Selecione o parceiro"
                   data={partners}
                   searchable
+                  clearable // Allow clearing partner selection
                   {...form.getInputProps("partnerId")}
                 />
                 <NumberInput
@@ -194,6 +253,7 @@ export function CreateProductModal({
                   label="Valor Devido ao Parceiro (R$)"
                   description="Quanto o clube deve ao parceiro por esta venda."
                   min={0}
+                  step={0.01} // Allow cents
                   decimalScale={2}
                   fixedDecimalScale
                   {...form.getInputProps("costPrice")}
@@ -204,37 +264,45 @@ export function CreateProductModal({
 
           {productType === "own" && (
              <Paper p="md" withBorder>
-                <Title order={5}>Detalhes do Estoque Próprio</Title>
-                 <NumberInput
-                  required
-                  label="Custo do Produto (R$)"
-                  description="Quanto o clube pagou por este item (para cálculo de lucro)."
-                  min={0}
-                  decimalScale={2}
-                  fixedDecimalScale
-                  {...form.getInputProps("costPrice")}
-                />
+                <Stack> {/* Added Stack for consistency */}
+                    <Title order={5}>Detalhes do Estoque Próprio</Title>
+                    <NumberInput
+                    required
+                    label="Custo do Produto (R$)"
+                    description="Quanto o clube pagou por este item (para cálculo de lucro)."
+                    min={0}
+                    step={0.01} // Allow cents
+                    decimalScale={2}
+                    fixedDecimalScale
+                    {...form.getInputProps("costPrice")}
+                    />
+                 </Stack>
              </Paper>
           )}
 
           <Paper p="md" withBorder mt="md">
-            <Title order={5}>Vínculo de Estoque</Title>
-            <Select
-              required
-              label="Item de Estoque Físico"
-              description="Qual item físico será deduzido quando este produto for vendido?"
-              placeholder="Selecione o item do inventário"
-              data={inventoryItems}
-              searchable
-              {...form.getInputProps("inventoryItemId")}
-            />
-            <NumberInput
-              required
-              label="Quantidade a Deduzir"
-              description="Ex: '50' para 50ml, '1' para 1 unidade/garrafa"
-              min={0}
-              {...form.getInputProps("deductionAmount")}
-            />
+             <Stack> {/* Added Stack for consistency */}
+                <Title order={5}>Vínculo de Estoque</Title>
+                <Select
+                  required
+                  label="Item de Estoque Físico"
+                  description="Qual item físico será deduzido quando este produto for vendido?"
+                  placeholder="Selecione o item do inventário"
+                  data={inventoryItems}
+                  searchable
+                  clearable // Allow clearing selection
+                  {...form.getInputProps("inventoryItemId")}
+                />
+                <NumberInput
+                  required
+                  label="Quantidade a Deduzir"
+                  description="Ex: '50' para 50ml, '1' para 1 unidade/garrafa"
+                  min={0.01} // Should deduct at least something
+                  step={1} // Default step, adjust if needed
+                  decimalScale={2} // Allow fractional deductions if needed (e.g., 0.5 units)
+                  {...form.getInputProps("deductionAmount")}
+                />
+             </Stack>
           </Paper>
 
           <Button type="submit" mt="md" color="privacyGold" loading={loading}>
