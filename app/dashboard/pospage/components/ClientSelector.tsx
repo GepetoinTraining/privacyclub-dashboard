@@ -1,6 +1,7 @@
 "use client";
 
-import { Select, Text, Group } from "@mantine/core";
+// Add Stack to the import from @mantine/core
+import { Select, Text, Group, Stack } from "@mantine/core";
 import { LiveClient } from "@/lib/types";
 
 type ClientSelectorProps = {
@@ -32,6 +33,7 @@ export function ClientSelector({
   };
 
   return (
+    // Stack component is now recognized
     <Stack gap="xs">
       <Select
         label="Cliente"
@@ -46,7 +48,8 @@ export function ClientSelector({
       {selectedClient && (
         <Text size="sm" c="green.7" fw={500}>
           Crédito disponível: R${" "}
-          {selectedClient.consumableCreditRemaining.toFixed(2)}
+          {/* Ensure consumableCreditRemaining is treated as a number here */}
+          {Number(selectedClient.consumableCreditRemaining).toFixed(2)}
         </Text>
       )}
     </Stack>
