@@ -80,8 +80,8 @@ export function AddStockModal({
     }
   };
 
-  const totalSmallestUnits =
-    (item.storageUnitSizeInSmallest || 1) * form.values.quantity;
+const totalSmallestUnits =
+    (Number(item.storageUnitSizeInSmallest) || 1) * form.values.quantity;
 
   return (
     <Modal opened={opened} onClose={onClose} title="Adicionar Estoque" centered>
