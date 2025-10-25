@@ -7,7 +7,7 @@ import { useDisclosure } from "@mantine/hooks";
 import { useState, useEffect } from "react";
 import { ApiResponse } from "@/lib/types";
 import { Client } from "@prisma/client";
-import { CreateClientModal } from "./components/CreateClientModal.tsx";
+import { CreateClientModal } from "./components/CreateClientModal";
 import { ClientTable } from "./components/ClientTable";
 
 function ClientsClientPage() {
