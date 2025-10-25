@@ -31,12 +31,12 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    // FIX 2: Convert Prisma.Decimal to string to match the new type
+// Convert Prisma.Decimal to number
     const liveClients: LiveClient[] = liveVisits.map((v) => ({
       visitId: v.id,
       clientId: v.client?.id || 0,
       name: v.client?.name || `Anônimo (Visita ${v.id})`,
-      consumableCreditRemaining: v.consumableCreditRemaining.toString(), // <-- CONVERTED
+      consumableCreditRemaining: Number(v.consumableCreditRemaining), // <-- CONVERTED TO NUMBER
     }));
 
     // 2. Get Live Hostesses
