@@ -1,13 +1,16 @@
 "use client";
 
-import { HostessPayout } from "@/lib/types";
+// Change HostessPayout to HostessPayoutSummary
+import { HostessPayoutSummary } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
 import { Table, Text, Title } from "@mantine/core";
 
 type HostessPayoutInfoProps = {
-  data: HostessPayout[];
+  // Update the type here as well
+  data: HostessPayoutSummary[];
 };
 
+// Update the type in the function signature
 export function HostessPayoutInfo({ data }: HostessPayoutInfoProps) {
   const rows = data.map((row) => (
     <Table.Tr key={row.hostId}>
@@ -21,6 +24,7 @@ export function HostessPayoutInfo({ data }: HostessPayoutInfoProps) {
       </Table.Td>
       <Table.Td>
         <Text fz="sm" fw={500} c="green">
+          {/* Ensure conversion to number before formatting */}
           {formatCurrency(Number(row.totalUnpaidCommissions))}
         </Text>
       </Table.Td>
@@ -62,4 +66,3 @@ export function HostessPayoutInfo({ data }: HostessPayoutInfoProps) {
     </>
   );
 }
-
