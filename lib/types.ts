@@ -1,15 +1,15 @@
-import { 
-  Client, 
-  Environment, 
-  Host, 
-  HostShift, 
-  Partner, 
-  PartnerPayout, 
-  Product, 
-  PromotionBulletin, 
-  Sale, 
-  Staff, 
-  StaffCommission, 
+import {
+  Client,
+  Environment,
+  Host,
+  HostShift,
+  Partner,
+  PartnerPayout,
+  Product,
+  PromotionBulletin,
+  Sale,
+  Staff,
+  StaffCommission,
   Visit ,
   StaffShift,
   Prisma
@@ -23,6 +23,8 @@ export type StaffSession = {
   name: string;
   role: string;
   isLoggedIn: true;
+  shiftId?: number; // Added shiftId based on sales route usage
+  pin?: string; // Added pin based on sales route usage (admin check)
 };
 
 // ---
@@ -32,6 +34,7 @@ export type ApiResponse<T = unknown> = {
   success: boolean;
   data?: T;
   error?: string; // This is the fix for the build error
+  message?: string; // Added based on auth route usage
 };
 
 // ---
@@ -53,12 +56,17 @@ export type ClientWithVisits = Client & {
 
 export type ClientDetails = Client & {
   visits: (Visit & {
-    sales: (Sale & { product: Product })[];
+    sales: (Sale & { product: Product, host: Host | null })[]; // Added host to sales
   })[];
   _count: {
     visits: number;
   };
 };
+// Alias for ClientDetailPage usage
+export type ClientWithDetails = ClientDetails;
+// Alias for ClientVisitHistory usage
+export type VisitWithSales = ClientDetails['visits'][number];
+
 
 // ---
 // 5. HOSTESSES TAB
@@ -81,20 +89,19 @@ export type AggregatedStock = {
   inventoryItemId: number;
   name: string;
   smallestUnit: string;
-  totalStock: number;
+  totalStock: number; // Renamed from currentStock based on inventory route
   reorderThreshold: number | null;
 };
 
-// Live Data (for POS & Live Map)
-// ---
 
-// FIX 1: This is the new, correct definition for LiveClient
-// It matches the object you are creating in app/api/live/route.ts
+// ---
+// 8. LIVE DATA (POS & LIVE MAP)
+// ---
 export type LiveClient = {
   visitId: number;
   clientId: number;
   name: string;
-  consumableCreditRemaining: string | number; // Expect string or number for JSON
+  consumableCreditRemaining: number; // Changed back to number based on CheckoutModal usage
 };
 
 export type LiveHostess = {
@@ -109,36 +116,66 @@ export type LiveData = {
   products: Product[];
 };
 
+// Cart Item for POS page
+export type CartItem = {
+  product: Product;
+  quantity: number;
+};
+
+// *** ADDED THIS TYPE ***
+export type SalePayload = {
+  visitId: number;
+  hostId: number;
+  cart: {
+    productId: number;
+    quantity: number;
+  }[];
+};
+// *** END OF ADDED TYPE ***
+
 // ---
 // 9. FINANCIALS TAB
 // ---
-export type StaffPayout = StaffCommission & {
+// Needed for StaffPayoutTable
+export type StaffCommissionWithDetails = StaffCommission & {
   staff: { name: string };
-  relatedSale: { id: number } | null;
-  relatedClient: { name: string | null } | null;
+  relatedSale: Sale | null;
+  relatedClient: Client | null;
 };
 
-export type PartnerPayoutItem = PartnerPayout & {
-  partner: { companyName: string };
-  sale: { id: number; priceAtSale: number };
+// Needed for PartnerPayoutTable
+export type PartnerPayoutWithDetails = PartnerPayout & {
+  partner: Partner;
+  sale: Sale & { product: Product };
 };
 
-export type HostessPayout = {
+// FIX: Renamed this type alias to avoid conflict with model name
+export type HostessPayoutSummary = {
   hostId: number;
   stageName: string;
-  totalUnpaidCommissions: number | String;
+  totalUnpaidCommissions: string | number; // Kept as string | number based on api route fix
 };
+
 
 export type FinancialsData = {
-  staffPayouts: StaffPayout[];
-  staffCommissions: StaffPayout[];
-  partnerPayouts: PartnerPayoutItem[];
-  hostessPayouts: HostessPayout[];
+  staffCommissions: StaffCommissionWithDetails[]; // Use the detailed type
+  partnerPayouts: PartnerPayoutWithDetails[]; // Use the detailed type
+  hostessPayouts: HostessPayoutSummary[]; // Use the renamed type alias
+  // Removed staffPayouts as it was empty and staffCommissions covers it
 };
 
 // ---
-// Reports
+// 10. REPORTS / BI TAB
 // ---
+
+// Added based on reports route usage
+export type ReportStat = { title: string; value: string };
+export type SalesDataPoint = { date: string; sales: number }; // Used 'sales' based on SalesChart component
+export type HostessLeaderboardItem = { hostId: number; stageName: string; totalSales: number };
+export type ProductLeaderboardItem = { productId: number; name: string; totalSold: number }; // Added totalSold based on Leaderboards component
+
+
+// FIX: Corrected ReportData structure based on reports route implementation
 export type ReportData = {
   kpis: {
     totalRevenue: number;
@@ -146,26 +183,24 @@ export type ReportData = {
     avgSaleValue: number;
     newClients: number;
   };
-  salesOverTime: {
-    date: string;
-    Revenue: number;
-  }[];
-  hostessLeaderboard: {
-    name: string;
-    Sales: number;
-  }[];
-  productLeaderboard: {
-    name: string;
-    Sales: number;
-  }[];
+  salesOverTime: { date: string; Revenue: number }[]; // Changed sales to Revenue based on route
+  hostessLeaderboard: { name: string; Sales: number }[]; // Changed totalSales to Sales based on route
+  productLeaderboard: { name: string; Sales: number }[]; // Changed totalSold to Sales based on route
 };
 
 
-
 // ---
-// QR / Client Token
+// 11. QR / CLIENT TOKEN
 // ---
 export type QrTokenPayload = {
   token: string;
   qrCodeUrl: string;
+  visitId?: number; // Added based on qr route usage
+  clientId?: number; // Added based on qr route usage
+};
+
+// Added based on qr lib usage
+export type ClientTokenPayload = {
+  visitId: number;
+  clientId: number;
 };
