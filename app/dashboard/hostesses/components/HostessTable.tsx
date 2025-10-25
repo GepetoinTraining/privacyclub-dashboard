@@ -1,6 +1,7 @@
 "use client";
 
 import { Table, Badge, Text, Center, Loader, Anchor } from "@mantine/core";
+// Import HostStatus from Prisma Client
 import { Host, HostStatus } from "@prisma/client";
 import dayjs from "dayjs";
 import Link from "next/link";
@@ -35,10 +36,12 @@ export function HostessTable({ hostesses, loading }: HostessTableProps) {
         </Badge>
       </Table.Td>
       <Table.Td>
-        <Text>R$ {item.baseRate?.toFixed(2) || "N/A"}</Text>
+        {/* Safely convert baseRate (Decimal | null) to string */}
+        <Text>R$ {item.baseRate ? Number(item.baseRate).toFixed(2) : "N/A"}</Text>
       </Table.Td>
       <Table.Td>
-        <Text>{(item.commissionRate * 100).toFixed(0)}%</Text>
+         {/* Convert commissionRate (Decimal) to number before multiplying */}
+        <Text>{(Number(item.commissionRate) * 100).toFixed(0)}%</Text>
       </Table.Td>
       <Table.Td>
         <Text size="sm" c="dimmed">
