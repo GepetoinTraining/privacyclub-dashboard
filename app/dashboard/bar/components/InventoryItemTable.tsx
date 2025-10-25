@@ -29,7 +29,7 @@ export function InventoryItemTable({
       </Table.Td>
       <Table.Td>
         <Text>
-          {item.storageUnitName} ({item.storageUnitSizeInSmallest}{" "}
+          {item.storageUnitName} ({item.storageUnitSizeInSmallest?.toString() || 'N/A'}{" "}
           {item.smallestUnit})
         </Text>
       </Table.Td>
