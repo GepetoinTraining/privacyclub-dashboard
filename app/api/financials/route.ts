@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
-import { ApiResponse, FinancialsData, HostessPayout } from "@/lib/types";
+import { ApiResponse, FinancialsData, HostessPayoutSummary } from "@/lib/types"; // Changed HostessPayout to HostessPayoutSummary
 import { NextRequest, NextResponse } from "next/server";
 import { StaffRole } from "@prisma/client";
 
@@ -61,7 +61,7 @@ export async function GET(req: NextRequest) {
     });
     
     // FIX 1: Renamed variable to `hostessPayoutData` to avoid conflict with `HostessPayout` type
-    const hostessPayoutData: HostessPayout[] = hostCommissions.map(hc => {
+    const hostessPayoutData: HostessPayoutSummary[] = hostCommissions.map(hc => { // Changed HostessPayout to HostessPayoutSummary
       const host = hosts.find(h => h.id === hc.hostId);
       return {
         hostId: hc.hostId,
@@ -82,8 +82,7 @@ export async function GET(req: NextRequest) {
     const data: FinancialsData = {
       staffCommissions: staffCommissions as any,
       partnerPayouts: partnerPayouts as any,
-      staffPayouts: [], // Placeholder, as we don't have a separate staff payouts logic yet
-      // FIX 2: Use correct property name (lowercase 'h') and new variable name
+      // staffPayouts: [], // Removed this line
       hostessPayouts: hostessPayoutData,
     };
 
