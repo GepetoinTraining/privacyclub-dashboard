@@ -9,13 +9,16 @@ import {
   Button,
   LoadingOverlay,
 } from "@mantine/core";
-import { ClientWithDetails } from "../page";
+// Removed the incorrect import from "../page"
+// Import the type directly from lib/types
+import { ClientWithDetails } from "@/lib/types"; // Corrected import path
 import { useState } from "react";
 import { notifications } from "@mantine/notifications";
 import { ApiResponse } from "@/lib/types";
 import { Client } from "@prisma/client";
 
 type ClientDetailProps = {
+  // Use the imported ClientWithDetails type
   client: ClientWithDetails;
 };
 
@@ -28,10 +31,18 @@ export function ClientDetail({ client }: ClientDetailProps) {
   const handleUpdateCrm = async () => {
     setLoading(true);
     try {
+      // Ensure crmData is valid JSON before parsing and sending
+      let parsedCrmData;
+      try {
+        parsedCrmData = JSON.parse(crmData);
+      } catch (e) {
+        throw new Error("Invalid JSON");
+      }
+
       const response = await fetch(`/api/clients/${client.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ crmData: JSON.parse(crmData) }),
+        body: JSON.stringify({ crmData: parsedCrmData }), // Send parsed data
       });
       const result: ApiResponse<Client> = await response.json();
       if (!response.ok) throw new Error(result.error || "Falha ao atualizar");
@@ -68,6 +79,7 @@ export function ClientDetail({ client }: ClientDetailProps) {
           minRows={20}
           value={crmData}
           onChange={setCrmData}
+          validationError={!crmData || (() => { try { JSON.parse(crmData); return null; } catch { return 'JSON inválido'; } })()} // Added validation display
         />
         <Button onClick={handleUpdateCrm} color="privacyGold" loading={loading}>
           Salvar Perfil
