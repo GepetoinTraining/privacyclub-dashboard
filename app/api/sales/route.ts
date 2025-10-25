@@ -77,9 +77,12 @@ export async function POST(req: NextRequest) {
       if (!product)
         throw new Error(`Produto ID ${item.productId} não encontrado`);
 
-      const priceAtSale = product.salePrice;
-      const itemTotal = priceAtSale * item.quantity;
-      const itemCommission = itemTotal * host.commissionRate;
+      // Convert Prisma Decimals to JavaScript numbers
+      const priceAtSale = Number(product.salePrice);
+      const hostCommissionRate = Number(host.commissionRate);
+
+      const itemTotal = priceAtSale * item.quantity; // Now number * number
+      const itemCommission = itemTotal * hostCommissionRate; // Now number * number
 
       totalSaleAmount += itemTotal;
       totalCommission += itemCommission;
@@ -97,13 +100,16 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // --- 3. Calculate payment split ---
+// --- 3. Calculate payment split ---
+    // Convert Decimal credit to a number first
+    const currentCreditNumber = Number(visit.consumableCreditRemaining);
+
     const creditToUse = Math.min(
-      visit.consumableCreditRemaining,
-      totalSaleAmount
+      currentCreditNumber, // Now a number
+      totalSaleAmount      // Already a number
     );
-    const cashToCharge = totalSaleAmount - creditToUse;
-    const newCreditRemaining = visit.consumableCreditRemaining - creditToUse;
+    const cashToCharge = totalSaleAmount - creditToUse; // Now number - number
+    const newCreditRemaining = currentCreditNumber - creditToUse; // Now number - number
 
     // Apply payment split to all sale items
     // (We just log the total split on the *first* item for simplicity,
