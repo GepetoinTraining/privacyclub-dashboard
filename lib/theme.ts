@@ -18,7 +18,7 @@ const privacyGold: MantineColorsTuple = [
 
 export const theme = createTheme({
   /** Put your mantine theme override here */
-  colorScheme: "dark",
+  // colorScheme: "dark", // REMOVED: Set in MantineProvider instead for v8
   primaryColor: "privacyGold",
   colors: {
     privacyGold,
@@ -40,10 +40,8 @@ export const theme = createTheme({
         shadow: "sm",
       },
     },
-    Input: {
-      defaultProps: {
-        radius: "md",
-      },
-    },
+    // Ensure Input styles are compatible with v8 if needed
+    // Input might now be TextInput, NumberInput etc. specific styles
+    // Or use InputWrapper
   },
 });
