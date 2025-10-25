@@ -3,7 +3,8 @@
 import { Text, Stack, LoadingOverlay, Alert, Tabs } from "@mantine/core";
 import { PageHeader } from "../components/PageHeader";
 import { useState, useEffect } from "react";
-import { ApiResponse, FinancialsData } from "@/lib/types";
+// Import HostessPayoutSummary explicitly if needed for casting, or rely on FinancialsData
+import { ApiResponse, FinancialsData, HostessPayoutSummary } from "@/lib/types";
 import { notifications } from "@mantine/notifications";
 import { Building, CircleDollarSign, Heart, User } from "lucide-react";
 import { StaffPayoutTable } from "./components/StaffPayoutTable";
@@ -18,7 +19,19 @@ export default function FinancialsPage() {
     setLoading(true);
     try {
       const response = await fetch("/api/financials");
-      if (!response.ok) throw new Error("Failed to fetch financial data");
+      if (!response.ok) {
+         // Try to parse error from response body
+         let errorMsg = "Failed to fetch financial data";
+         try {
+             const errorResult: ApiResponse = await response.json();
+             if (errorResult.error) {
+                 errorMsg = errorResult.error;
+             }
+         } catch (parseError) {
+             // Ignore if response is not JSON
+         }
+         throw new Error(errorMsg);
+      }
       const result: ApiResponse<FinancialsData> = await response.json();
       if (result.success && result.data) {
         setData(result.data);
@@ -37,14 +50,39 @@ export default function FinancialsPage() {
     }
   };
 
+
   useEffect(() => {
     fetchData();
   }, []);
 
+  // Early return or conditional rendering for loading/error state
+  if (loading) {
+     return (
+        <Stack>
+            <PageHeader title="Financeiro (Contas a Pagar)" />
+            <LoadingOverlay visible={true} />
+            <Text>Carregando dados financeiros...</Text>
+        </Stack>
+     );
+  }
+
+  if (!data) {
+     return (
+         <Stack>
+             <PageHeader title="Financeiro (Contas a Pagar)" />
+             <Alert color="red" title="Erro">
+                 Não foi possível carregar os dados financeiros. Tente novamente mais tarde.
+             </Alert>
+         </Stack>
+     );
+  }
+
+
   return (
     <Stack>
       <PageHeader title="Financeiro (Contas a Pagar)" />
-      <LoadingOverlay visible={loading} />
+      {/* Loading overlay removed, handled by early return */}
+      {/* <LoadingOverlay visible={loading} /> */}
 
       <Tabs defaultValue="staff" color="privacyGold">
         <Tabs.List>
@@ -60,26 +98,28 @@ export default function FinancialsPage() {
         </Tabs.List>
 
         <Tabs.Panel value="staff" pt="md">
+          {/* Ensure data?.staffCommissions matches StaffPayout[] type */}
           <StaffPayoutTable
-            commissions={data?.staffCommissions || []}
+            commissions={data.staffCommissions || []}
             onSuccess={fetchData}
           />
         </Tabs.Panel>
 
         <Tabs.Panel value="partners" pt="md">
+           {/* Ensure data?.partnerPayouts matches PartnerPayoutItem[] type */}
           <PartnerPayoutTable
-            payouts={data?.partnerPayouts || []}
+            payouts={data.partnerPayouts || []}
             onSuccess={fetchData}
           />
         </Tabs.Panel>
-        
+
         <Tabs.Panel value="hostesses" pt="md">
-          <HostessPayoutInfo 
-            commissions={data?.hostessCommissions || []}
+          {/* Change prop name to 'data' and source to 'hostessPayouts' */}
+          <HostessPayoutInfo
+            data={data.hostessPayouts || []}
           />
         </Tabs.Panel>
       </Tabs>
     </Stack>
   );
 }
-
