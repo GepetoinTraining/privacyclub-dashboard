@@ -22,10 +22,10 @@ export function CurrentStockTable({
   loading,
   onAddStock,
 }: CurrentStockTableProps) {
-  const rows = stockLevels.map((item) => {
+const rows = stockLevels.map((item) => {
     const isLowStock =
       item.reorderThreshold !== null &&
-      item.currentStock <= item.reorderThreshold;
+      item.totalStock <= item.reorderThreshold;
     
     return (
       <Table.Tr key={item.inventoryItemId}>
@@ -34,7 +34,7 @@ export function CurrentStockTable({
         </Table.Td>
         <Table.Td>
           <Text fw={700} c={isLowStock ? "red" : "unset"}>
-            {item.currentStock.toLocaleString("pt-BR")}
+            {item.totalStock.toLocaleString("pt-BR")} {/* << FIXED */}
           </Text>
         </Table.Td>
         <Table.Td>
