@@ -113,9 +113,9 @@ model Host {
 
 model Staff {
   id            Int      @id @default(autoincrement())
-  name          String
+  name          String   @unique // <-- Add @unique here
   defaultRole   StaffRole
-  pinCode       String   @unique // <-- Made PIN unique
+  pinCode       String   @unique
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
 
