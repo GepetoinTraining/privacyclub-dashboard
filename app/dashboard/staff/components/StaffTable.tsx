@@ -1,6 +1,7 @@
 "use client";
 
-import { Table, Tag, Badge, Text, Center, Loader } from "@mantine/core";
+// Removed 'Tag' from the import statement
+import { Table, Badge, Text, Center, Loader } from "@mantine/core";
 import { Staff, StaffRole } from "@prisma/client";
 import dayjs from "dayjs";
 
@@ -12,6 +13,9 @@ type StaffTableProps = {
 export function StaffTable({ staff, loading }: StaffTableProps) {
   const getRoleColor = (role: StaffRole) => {
     switch (role) {
+      // Added Admin role color
+      case StaffRole.Admin:
+        return "red"; // Or another distinct color
       case StaffRole.Cashier:
         return "green";
       case StaffRole.Security:
@@ -42,11 +46,15 @@ export function StaffTable({ staff, loading }: StaffTableProps) {
       </Table.Td>
       <Table.Td>
         <Text size="sm" c="dimmed">
-          {dayjs(item.createdAt).format("DD/MM/YYYY")}
+          {/* Add safe access just in case createdAt is missing */}
+          {item.createdAt ? dayjs(item.createdAt).format("DD/MM/YYYY") : "N/A"}
         </Text>
       </Table.Td>
     </Table.Tr>
   ));
+
+  // Define colSpan based on the number of columns
+  const colSpan = 4;
 
   return (
     <Table.ScrollContainer minWidth={600}>
@@ -62,7 +70,7 @@ export function StaffTable({ staff, loading }: StaffTableProps) {
         <Table.Tbody>
           {loading ? (
             <Table.Tr>
-              <Table.Td colSpan={4}>
+              <Table.Td colSpan={colSpan}> {/* Use colSpan */}
                 <Center h={200}>
                   <Loader color="privacyGold" />
                 </Center>
@@ -72,7 +80,7 @@ export function StaffTable({ staff, loading }: StaffTableProps) {
             rows
           ) : (
             <Table.Tr>
-              <Table.Td colSpan={4}>
+              <Table.Td colSpan={colSpan}> {/* Use colSpan */}
                 <Text ta="center" c="dimmed" py="lg">
                   Nenhum funcionário encontrado.
                 </Text>
