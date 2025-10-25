@@ -6,24 +6,36 @@ import { Box, Package, Plus } from "lucide-react";
 import { useDisclosure } from "@mantine/hooks";
 import { useState, useEffect } from "react";
 import { ApiResponse, AggregatedStock } from "@/lib/types";
-import { InventoryItem } from "@prisma/client";
+// Import InventoryItem type from Prisma for casting if needed later
+import { InventoryItem, SmallestUnit } from "@prisma/client"; // Added SmallestUnit
 import { CurrentStockTable } from "./components/CurrentStockTable";
 import { CreateInventoryItemModal } from "./components/CreateInventoryItemModal";
 import { InventoryItemTable } from "./components/InventoryItemTable";
 import { AddStockModal } from "./components/AddStockModal";
+
+// Define the type expected from the API after serialization
+// Make sure this matches the type defined in the API route
+type SerializedInventoryItem = Omit<InventoryItem, 'storageUnitSizeInSmallest' | 'reorderThresholdInSmallest'> & {
+  storageUnitSizeInSmallest: number | null;
+  reorderThresholdInSmallest: number | null;
+  createdAt: Date | string; // Expect Date object OR string from JSON parse
+};
+
 
 function BarClientPage() {
   const [loadingStock, setLoadingStock] = useState(true);
   const [loadingItems, setLoadingItems] = useState(true);
 
   const [stockLevels, setStockLevels] = useState<AggregatedStock[]>([]);
-  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
+  // Use the SerializedInventoryItem type for state
+  const [inventoryItems, setInventoryItems] = useState<SerializedInventoryItem[]>([]);
 
   const [createItemModal, { open: openCreateItem, close: closeCreateItem }] =
     useDisclosure(false);
   const [addStockModal, { open: openAddStock, close: closeAddStock }] =
     useDisclosure(false);
-  const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
+  // selectedItem should also use the serialized type
+  const [selectedItem, setSelectedItem] = useState<SerializedInventoryItem | null>(null);
 
   const fetchData = async () => {
     setLoadingStock(true);
@@ -37,10 +49,17 @@ function BarClientPage() {
       }
 
       // Fetch all defined inventory items
-      const itemsRes = await fetch("/api/inventory/items"); // We already built this
-      const itemsResult: ApiResponse<InventoryItem[]> = await itemsRes.json();
+      const itemsRes = await fetch("/api/inventory/items");
+      // Expect the serialized type from the API
+      const itemsResult: ApiResponse<SerializedInventoryItem[]> = await itemsRes.json();
       if (itemsResult.success && itemsResult.data) {
-        setInventoryItems(itemsResult.data);
+        // IMPORTANT: Convert Date strings from JSON back to Date objects
+        const itemsWithDates = itemsResult.data.map(item => ({
+          ...item,
+          // Ensure createdAt is a Date object for components like dayjs
+          createdAt: new Date(item.createdAt)
+        }));
+        setInventoryItems(itemsWithDates);
       }
     } catch (error) {
       console.error(error);
@@ -55,7 +74,8 @@ function BarClientPage() {
     fetchData();
   }, []);
 
-  const handleOpenAddStock = (item: InventoryItem) => {
+  // Adjust the type for the item passed to the modal handler
+  const handleOpenAddStock = (item: SerializedInventoryItem) => {
     setSelectedItem(item);
     openAddStock();
   };
@@ -73,12 +93,16 @@ function BarClientPage() {
         onClose={closeCreateItem}
         onSuccess={handleSuccess}
       />
+      {/* Pass the correctly typed selectedItem */}
       {selectedItem && (
         <AddStockModal
           opened={addStockModal}
           onClose={closeAddStock}
           onSuccess={handleSuccess}
-          item={selectedItem}
+          // Note: AddStockModal might need internal adjustments
+          // if it performs math with Decimal fields directly.
+          // For now, cast necessary props if it expects InventoryItem
+          item={selectedItem as InventoryItem} // Casting might be okay if AddStockModal only READS basic fields
         />
       )}
 
@@ -110,19 +134,22 @@ function BarClientPage() {
             <CurrentStockTable
               stockLevels={stockLevels}
               loading={loadingStock}
-              onAddStock={(item) =>
-                handleOpenAddStock(
-                  inventoryItems.find((i) => i.id === item.inventoryItemId)!
-                )
-              }
+              onAddStock={(stockItem) => {
+                 // Find the corresponding full item detail from state
+                 const fullItem = inventoryItems.find((i) => i.id === stockItem.inventoryItemId);
+                 if (fullItem) {
+                   handleOpenAddStock(fullItem);
+                 }
+              }}
             />
           </Tabs.Panel>
 
           <Tabs.Panel value="items" pt="md">
+            {/* Pass the state which is now SerializedInventoryItem[] */}
             <InventoryItemTable
               items={inventoryItems}
               loading={loadingItems}
-              onAddStock={handleOpenAddStock}
+              onAddStock={handleOpenAddStock} // Pass the handler expecting SerializedInventoryItem
             />
           </Tabs.Panel>
         </Tabs>

@@ -7,21 +7,34 @@ import {
   Loader,
   ActionIcon,
 } from "@mantine/core";
+// Import InventoryItem just for the Omit base type
 import { InventoryItem, SmallestUnit } from "@prisma/client";
 import dayjs from "dayjs";
 import { Plus } from "lucide-react";
 
-type InventoryItemTableProps = {
-  items: InventoryItem[];
-  loading: boolean;
-  onAddStock: (item: InventoryItem) => void;
+// Define the type expected by this component (matching the Page component's state)
+type SerializedInventoryItem = Omit<InventoryItem, 'storageUnitSizeInSmallest' | 'reorderThresholdInSmallest'> & {
+  storageUnitSizeInSmallest: number | null;
+  reorderThresholdInSmallest: number | null;
+  createdAt: Date; // Expecting Date object after page component conversion
 };
+
+
+type InventoryItemTableProps = {
+  // Update prop type to expect the serialized version
+  items: SerializedInventoryItem[];
+  loading: boolean;
+  // Adjust onAddStock to accept the serialized type
+  onAddStock: (item: SerializedInventoryItem) => void;
+};
+
 
 export function InventoryItemTable({
   items,
   loading,
   onAddStock,
 }: InventoryItemTableProps) {
+  // Item type here correctly infers SerializedInventoryItem from props
   const rows = items.map((item) => (
     <Table.Tr key={item.id}>
       <Table.Td>
@@ -29,25 +42,28 @@ export function InventoryItemTable({
       </Table.Td>
       <Table.Td>
         <Text>
+          {/* storageUnitSizeInSmallest is now number | null */}
           {item.storageUnitName} ({item.storageUnitSizeInSmallest?.toString() || 'N/A'}{" "}
           {item.smallestUnit})
         </Text>
       </Table.Td>
       <Table.Td>
         <Text c="dimmed">
-          {item.reorderThresholdInSmallest || "N/A"}
+           {/* reorderThresholdInSmallest is now number | null */}
+          {item.reorderThresholdInSmallest?.toString() || "N/A"}
         </Text>
       </Table.Td>
       <Table.Td>
         <Text size="sm" c="dimmed">
-          {dayjs(item.createdAt).format("DD/MM/YYYY")}
+          {/* createdAt is now expected as Date, check just in case */}
+          {item.createdAt ? dayjs(item.createdAt).format("DD/MM/YYYY") : "N/A"}
         </Text>
       </Table.Td>
       <Table.Td>
         <ActionIcon
           variant="light"
           color="blue"
-          onClick={() => onAddStock(item)}
+          onClick={() => onAddStock(item)} // Pass the correctly typed item
           title="Adicionar estoque (compra)"
         >
           <Plus size={16} />
