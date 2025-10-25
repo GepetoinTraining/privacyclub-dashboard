@@ -4,6 +4,22 @@ import { ApiResponse, QrTokenPayload } from "@/lib/types";
 import { NextRequest, NextResponse } from "next/server";
 import { generateQrCodeDataUrl, signClientToken } from "@/lib/qr";
 
+// Default JSON structure for new anonymous clients
+const defaultCrmData = {
+  visit_pattern: {},
+  preferred_drinks: [],
+  common_hosts: [],
+  social_profile: {
+    origin: { is_local: null, city: null, state: null },
+    professional: {},
+    personal: {},
+    hobbies_interests: {},
+    lifestyle_cues: {},
+    service_profile: {},
+    general_notes: "Cliente anônimo (criado via QR).",
+  },
+};
+
 /**
  * POST /api/qr
  * Creates a new Client (anonymous) and a new Visit, then
@@ -29,7 +45,7 @@ export async function POST(req: NextRequest) {
       data: {
         name: "Patrono", // Default anonymous name
         status: "new",
-        // Other fields will be null or default
+        crmData: defaultCrmData, // ** THIS IS THE FIX **
       },
     });
 
@@ -37,9 +53,9 @@ export async function POST(req: NextRequest) {
     const newVisit = await prisma.visit.create({
       data: {
         clientId: newClient.id,
-        entryFeePaid: parseFloat(entryFee) || 200.00,
-        consumableCreditTotal: parseFloat(consumableCredit) || 100.00,
-        consumableCreditRemaining: parseFloat(consumableCredit) || 100.00,
+        entryFeePaid: parseFloat(entryFee) || 200.0,
+        consumableCreditTotal: parseFloat(consumableCredit) || 100.0,
+        consumableCreditRemaining: parseFloat(consumableCredit) || 100.0,
         // We'll set currentEnvironmentId when they move to a table
       },
     });
@@ -52,7 +68,9 @@ export async function POST(req: NextRequest) {
     const token = signClientToken(tokenPayload);
 
     // 4. Generate the URL and QR code
-    const clientUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/v/${token}`;
+    const clientUrl = `${
+      process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"
+    }/v/${token}`;
     const qrCodeUrl = await generateQrCodeDataUrl(clientUrl);
 
     const responsePayload: QrTokenPayload = {
@@ -72,3 +90,4 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
