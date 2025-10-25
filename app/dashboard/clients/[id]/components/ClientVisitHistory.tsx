@@ -10,11 +10,13 @@ import {
   Group,
   Table,
 } from "@mantine/core";
-import { VisitWithSales } from "../page";
+// Removed incorrect import from "../page"
+import { VisitWithSales } from "@/lib/types"; // Corrected import path
 import { Calendar, ShoppingBag, User, DollarSign } from "lucide-react";
 import dayjs from "dayjs";
 
 type ClientVisitHistoryProps = {
+  // Use the correctly imported type
   visits: VisitWithSales[];
 };
 
@@ -32,7 +34,7 @@ export function ClientVisitHistory({ visits }: ClientVisitHistoryProps) {
 
   const items = visits.map((visit) => {
     const visitTotal = visit.sales.reduce(
-      (acc, sale) => acc + sale.priceAtSale * sale.quantity,
+      (acc, sale) => acc + (Number(sale.priceAtSale) * sale.quantity), // Convert Decimal priceAtSale
       0
     );
 
@@ -43,7 +45,7 @@ export function ClientVisitHistory({ visits }: ClientVisitHistoryProps) {
         </Table.Td>
         <Table.Td>{sale.product?.name || "Produto Deletado"}</Table.Td>
         <Table.Td>{sale.quantity}</Table.Td>
-        <Table.Td>R$ {sale.priceAtSale.toFixed(2)}</Table.Td>
+        <Table.Td>R$ {Number(sale.priceAtSale).toFixed(2)}</Table.Td> {/* Convert Decimal priceAtSale */}
         <Table.Td>{sale.host?.stageName || "N/A"}</Table.Td>
       </Table.Tr>
     ));
