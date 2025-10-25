@@ -1,8 +1,11 @@
 "use client";
 
 import { Table, Badge, Text, Center, Loader, Group } from "@mantine/core";
+// Import the specific type alias used in the page component
 import { ProductWithRelations } from "../page";
 import dayjs from "dayjs";
+// Import Decimal for type safety if needed, though Number() conversion handles it
+import { Prisma } from "@prisma/client";
 
 type ProductTableProps = {
   products: ProductWithRelations[];
@@ -12,9 +15,15 @@ type ProductTableProps = {
 export function ProductTable({ products, loading }: ProductTableProps) {
   const rows = products.map((item) => {
     const isConsignment = !!item.partner;
+
+    // Convert Decimals to numbers for calculation
+    const salePriceNum = Number(item.salePrice);
+    const costPriceNum = Number(item.costPrice);
+
+    // Perform calculation with numbers
     const profitMargin =
-      item.salePrice > 0
-        ? ((item.salePrice - item.costPrice) / item.salePrice) * 100
+      salePriceNum > 0 // Compare numbers
+        ? ((salePriceNum - costPriceNum) / salePriceNum) * 100 // Calculate with numbers
         : 0;
 
     return (
@@ -31,13 +40,16 @@ export function ProductTable({ products, loading }: ProductTableProps) {
           </Badge>
         </Table.Td>
         <Table.Td>
-          <Text>R$ {item.salePrice.toFixed(2)}</Text>
+          {/* Display original Decimal formatted as currency */}
+          <Text>R$ {salePriceNum.toFixed(2)}</Text>
         </Table.Td>
         <Table.Td>
-          <Text c="dimmed">R$ {item.costPrice.toFixed(2)}</Text>
+           {/* Display original Decimal formatted as currency */}
+          <Text c="dimmed">R$ {costPriceNum.toFixed(2)}</Text>
         </Table.Td>
         <Table.Td>
           <Text c={profitMargin > 0 ? "green" : "red"} fw={500}>
+            {/* Display calculated number */}
             {profitMargin.toFixed(1)}%
           </Text>
         </Table.Td>
